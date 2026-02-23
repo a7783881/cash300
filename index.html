@@ -16,14 +16,14 @@
       background:#fff;
     }
 
-    /* ✅ 整組置中 */
+    
     .page{
       max-width: 760px;
       margin: 0 auto;
       padding:16px;
     }
 
-    /* ✅ 標題置中，更新時間置右 */
+    
     .topbar{
       display:grid;
       grid-template-columns: 1fr auto 1fr;
@@ -34,14 +34,14 @@
     h1{
       font-size:20px;
       margin:0;
-      text-align:center;          /* ✅ 置中 */
-      grid-column:2;              /* ✅ 放中間欄 */
+      text-align:center;          
+      grid-column:2;              
     }
     .updated{
       font-size:12px;
       color:#666;
       white-space:nowrap;
-      justify-self:end;           /* ✅ 置右 */
+      justify-self:end;           
       grid-column:3;
     }
     @media (max-width: 760px){
@@ -53,7 +53,7 @@
       .updated{ grid-column:auto; justify-self:start; }
     }
 
-    /* ✅ 左右同寬；窄螢幕單欄 */
+    
     .wrap{
       display:grid;
       grid-template-columns: minmax(320px, 360px) minmax(320px, 360px);
@@ -68,7 +68,7 @@
 
     .card{ border:1px solid #ddd; border-radius:12px; padding:12px; background:#fff; }
 
-    /* ✅ 左右 card 同高 */
+    
     .card.fixed{
       height: 560px;
       display:flex;
@@ -77,7 +77,7 @@
 
     .card h2{ font-size:13px; margin:0 0 8px; color:#333; }
 
-    /* 輸入框更短、更靠左 */
+    
     .grid{
       display:grid;
       grid-template-columns: 1fr 58px;
@@ -100,13 +100,13 @@
     input::placeholder{ color:#bbb; }
 
     
-    /* iPad/iPhone：避免聚焦輸入框時自動放大(zoom)造成版面看起來跑掉 */
+    
     @media (pointer: coarse){
-      /* 第二欄跟輸入框同寬，避免溢出導致對齊跑掉 */
+      
       .grid{ grid-template-columns: 1fr 64px; }
 
       input[type="number"], input[type="text"]{
-        font-size:16px;           /* iOS Safari <16px 會自動放大 */
+        font-size:16px;           
         width:64px;
       }
     }
@@ -166,7 +166,7 @@
   <div class="page">
     <div class="topbar">
       <div></div>
-      <!-- ✅ 改標題 + 置中 -->
+      
       <h1>備用金$300</h1>
       <div class="updated">Last updated: 2026/02/22</div>
     </div>
@@ -259,10 +259,10 @@
     (Anyone who views source can still see it.)
   */
 
-  // UI 顯示順序：20 在最上面，0.05 在最下面
-  // UI 顯示順序：大鈔在最上面，0.05 在最下面
-// ALL_DENOMS：用於「輸入/顯示/總額」(包含 $50/$100)
-// CALC_DENOMS：用於「湊零用金 $300」(不含 $50/$100)
+  
+  
+
+
 const ALL_DENOMS = [
   { key:"100",  label:"$100",  cents: 10000 },
   { key:"50",   label:"$50",   cents: 5000 },
@@ -287,7 +287,7 @@ const CALC_DENOMS = [
   { key:"0.05", label:"$0.05", cents: 5 },
 ];
 
-  // ✅ 輸入區顯示：數字前面加上 $（更不單調）
+  
   const INPUT_LABELS = {
   "100": "$100",
   "50": "$50",
@@ -307,7 +307,7 @@ const CALC_DENOMS = [
     { key:"10", count: 6 },
   ];
 
-  // 規則：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5；再少用 10、少用 20
+  
   const SCORE_KEYS = ["0.05","0.10","0.25","1","2","5","10","20"];
 
   const $ = (sel) => document.querySelector(sel);
@@ -331,8 +331,8 @@ const CALC_DENOMS = [
       lab.textContent = INPUT_LABELS[d.key] ?? d.key;
 
       const inp = document.createElement("input");
-      // iPad：強制跳「數字鍵盤」，並避免輸入文字
-      // 用 text + inputmode/pattern，比 type=number 更穩定（不會出現 e / - / .）
+      
+      
       inp.type = "text";
       inp.inputMode = "numeric";
       inp.pattern = "[0-9]*";
@@ -343,22 +343,22 @@ const CALC_DENOMS = [
       inp.value = "";
 
       function sanitize(){
-        // 移除所有非數字（避免 iPad 輸入法或貼上文字）
+        
         let s = inp.value.replace(/\D+/g, "");
-        // 去掉前導 0（但保留單一 0）
+        
         s = s.replace(/^0+(?=\d)/, "");
         inp.value = s;
       }
 
       inp.addEventListener("focus", () => inp.select());
 
-      // input 時即時清掉文字 / 符號，並觸發自動計算
+      
       inp.addEventListener("input", () => {
         sanitize();
         scheduleAutoCalc();
       });
 
-      // blur 時把 0/空字串清空（維持你原本「0 不顯示」的 UX）
+      
       inp.addEventListener("blur", () => {
         sanitize();
         const raw = inp.value.trim();
@@ -396,7 +396,7 @@ const CALC_DENOMS = [
       .replaceAll('"',"&quot;").replaceAll("'","&#039;");
   }
 
-  // ---------- 偏好 DP（Int32 防溢位） ----------
+  
   function betterCandidate(c, cur){
     for (let i = 0; i <= 5; i++){
       if (c[i] !== cur[i]) return c[i] > cur[i];
@@ -495,7 +495,7 @@ const CALC_DENOMS = [
     return { sumCents: bestSum, counts, exact: (bestSum === amountCents) };
   }
 
-  // ---------- 保底保險：只求 exact ----------
+  
   function solveAnyExact(amountCents, inv){
     amountCents = amountCents - (amountCents % 5);
     if (amountCents < 0) amountCents = 0;
@@ -569,7 +569,7 @@ const CALC_DENOMS = [
       return can;
     }
 
-    // 保底
+    
     let baseCents = 0;
     for (const b of BASE_LOCK){
       const got = take(b.key, b.count);
@@ -588,7 +588,7 @@ const CALC_DENOMS = [
       return { level:"bad", message:`庫存不足：保底後仍無法再組出任何金額。總計 ${money(totalCents)}。`, used, explain:"" };
     }
 
-    // 套用偏好解
+    
     for (const k of Object.keys(pref.counts)){
       const cnt = pref.counts[k] ?? 0;
       if (cnt > 0) take(k, cnt);
@@ -596,7 +596,7 @@ const CALC_DENOMS = [
 
     let totalCents = baseCents + pref.sumCents;
 
-    // 若沒到 300，檢查是否存在 exact；若存在就救回 300
+    
     if (totalCents !== TARGET_CENTS){
       inv = { ...originalInv };
       for (const b of BASE_LOCK){
@@ -646,11 +646,11 @@ const CALC_DENOMS = [
 
     const invInput = readInv();
     tbody.innerHTML = "";
-    let sum = 0;            // 零用金總額（cents）
-    let invSum = 0;         // 總金額（cents）
-    let remainSum = 0;      // 每日現金總額（cents）
-    let invPieces = 0;      // 庫存總數量（張/枚）
-    let remainPieces = 0;   // 剩餘總數量（張/枚）
+    let sum = 0;            
+    let invSum = 0;         
+    let remainSum = 0;      
+    let invPieces = 0;      
+    let remainPieces = 0;   
 
     for (const d of ALL_DENOMS){
       const invCnt = invInput[d.key] ?? 0;
@@ -680,7 +680,7 @@ const CALC_DENOMS = [
     grandTotalEl.textContent = money(sum);
     explainEl.innerHTML = res.explain ?? "";
 
-    // 摘要：庫存 / 配發 / 剩餘（總額 + 總數量）
+    
     summaryEl.innerHTML = [
       `總金額：$${money(invSum)}（${invPieces}）`,
       `零用金：$${money(sum)}（${invPieces - remainPieces}）`,
@@ -688,7 +688,7 @@ const CALC_DENOMS = [
     ].join("<br>");
   }
 
-  // 自動計算 debounce（避免當機）
+  
   let calcTimer = null;
   let isRunning = false;
 
