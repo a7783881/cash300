@@ -82,7 +82,8 @@
       justify-items:start;
     }
     label{ font-size:12.5px; color:#222; }
-    input[type="number"]{
+    input[type="number"],
+    input[type="text"]{
       width:58px;
       padding:5px 7px;
       border:1px solid #ccc;
@@ -94,7 +95,18 @@
     }
     input::placeholder{ color:#bbb; }
 
-    .btns{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+    
+    /* iPad/iPhone：避免聚焦輸入框時自動放大(zoom)造成版面看起來跑掉 */
+    @media (pointer: coarse){
+      /* 第二欄跟輸入框同寬，避免溢出導致對齊跑掉 */
+      .grid{ grid-template-columns: 1fr 64px; }
+
+      input[type="number"], input[type="text"]{
+        font-size:16px;           /* iOS Safari <16px 會自動放大 */
+        width:64px;
+      }
+    }
+.btns{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
     button{
       padding:8px 11px; border:1px solid #333; background:#111; color:#fff; border-radius:10px;
       cursor:pointer; font-size:13px;
@@ -162,14 +174,14 @@
           </div>
 
           <div class="note">
-            ✅ 自動計算（有延遲防抖，避免當機）。<br>
+            ✅ 自動計算<br>
             1) 先保底：<span class="pill">20×3</span>、<span class="pill">10×6</span>（不足就拿多少）。<br>
             2) 目標：<b>只要湊得到 300 就一定湊到 300</b>；在此基礎上盡量多留 0.05 / 0.10 / 0.25。<br>
             3) 若真的湊不到 300，才會顯示最大可達（不超過 300）。
           </div>
         </div>
 
-        <div class="author">Author: Min</div>
+        <div class="author">Author: Jake (Min)</div>
       </div>
 
       <div class="card fixed">
@@ -182,7 +194,8 @@
               <tr>
                 <th>面額</th>
                 <th>總數</th>
-                <th>數量</th>
+                <th>零用金</th>
+                <th>每日現金</th>
                 <th>總計</th>
               </tr>
             </thead>
@@ -192,12 +205,14 @@
                 <td class="mono"><b>總計</b></td>
                 <td></td>
                 <td></td>
+                <td></td>
                 <td class="mono" id="grandTotal"><b>0.00</b></td>
               </tr>
             </tfoot>
           </table>
 
           <div class="footer" id="explain"></div>
+          <div class="footer mono" id="summary"></div>
         </div>
       </div>
     </div>
@@ -207,7 +222,7 @@
 (() => {
   /*
     Internal marker (not shown on UI):
-    Author: Jake(Min)
+    Author: Min
     (Anyone who views source can still see it.)
   */
 
@@ -241,7 +256,7 @@
     { key:"10", count: 6 },
   ];
 
-  // 偏好：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5；再少用 10、少用 20
+  // 規則：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5；再少用 10、少用 20
   const SCORE_KEYS = ["0.05","0.10","0.25","1","2","5","10","20"];
 
   const $ = (sel) => document.querySelector(sel);
@@ -250,6 +265,7 @@
   const tbody = $("#resultTable tbody");
   const grandTotalEl = $("#grandTotal");
   const explainEl = $("#explain");
+  const summaryEl = $("#summary");
 
   // Hidden watermark string (not displayed)
   const __wm = ["Au","thor",": ","Min"].join("");
@@ -264,23 +280,40 @@
       lab.textContent = INPUT_LABELS[d.key] ?? d.key;
 
       const inp = document.createElement("input");
-      inp.type = "number";
-      inp.min = "0";
-      inp.step = "1";
+      // iPad：強制跳「數字鍵盤」，並避免輸入文字
+      // 用 text + inputmode/pattern，比 type=number 更穩定（不會出現 e / - / .）
+      inp.type = "text";
+      inp.inputMode = "numeric";
+      inp.pattern = "[0-9]*";
+      inp.autocomplete = "off";
       inp.id = id;
 
       inp.placeholder = "0";
       inp.value = "";
 
+      function sanitize(){
+        // 移除所有非數字（避免 iPad 輸入法或貼上文字）
+        let s = inp.value.replace(/\D+/g, "");
+        // 去掉前導 0（但保留單一 0）
+        s = s.replace(/^0+(?=\d)/, "");
+        inp.value = s;
+      }
+
       inp.addEventListener("focus", () => inp.select());
+
+      // input 時即時清掉文字 / 符號，並觸發自動計算
+      inp.addEventListener("input", () => {
+        sanitize();
+        scheduleAutoCalc();
+      });
+
+      // blur 時把 0/空字串清空（維持你原本「0 不顯示」的 UX）
       inp.addEventListener("blur", () => {
+        sanitize();
         const raw = inp.value.trim();
         const v = raw === "" ? 0 : Number(raw);
         if (!raw || !Number.isFinite(v) || v <= 0) inp.value = "";
-        else inp.value = String(Math.floor(v));
       });
-
-      inp.addEventListener("input", scheduleAutoCalc);
 
       invGrid.appendChild(lab);
       invGrid.appendChild(inp);
@@ -561,7 +594,11 @@
 
     const invInput = readInv();
     tbody.innerHTML = "";
-    let sum = 0;
+    let sum = 0;            // 零用金總額（cents）
+    let invSum = 0;         // 總金額（cents）
+    let remainSum = 0;      // 每日現金總額（cents）
+    let invPieces = 0;      // 庫存總數量（張/枚）
+    let remainPieces = 0;   // 剩餘總數量（張/枚）
 
     for (const d of DENOMS){
       const invCnt = invInput[d.key] ?? 0;
@@ -569,11 +606,20 @@
       const subtotal = useCnt * d.cents;
       sum += subtotal;
 
+      const invSubtotal = invCnt * d.cents;
+      invSum += invSubtotal;
+      invPieces += invCnt;
+
+      const remainCnt = Math.max(0, invCnt - useCnt);
+      remainSum += remainCnt * d.cents;
+      remainPieces += remainCnt;
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td class="mono">${d.label}</td>
         <td class="mono">${invCnt}</td>
         <td class="mono"><b>${useCnt}</b></td>
+        <td class="mono">${remainCnt}</td>
         <td class="mono">${money(subtotal)}</td>
       `;
       tbody.appendChild(tr);
@@ -581,6 +627,13 @@
 
     grandTotalEl.textContent = money(sum);
     explainEl.innerHTML = res.explain ?? "";
+
+    // 摘要：庫存 / 配發 / 剩餘（總額 + 總數量）
+    summaryEl.innerHTML = [
+      `總金額：$${money(invSum)}（${invPieces}）`,
+      `零用金：$${money(sum)}（${invPieces - remainPieces}）`,
+      `每日現金：$${money(remainSum)}（${remainPieces}）`,
+    ].join("<br>");
   }
 
   // 自動計算 debounce（避免當機）
@@ -613,6 +666,7 @@
     tbody.innerHTML = "";
     grandTotalEl.textContent = "0.00";
     explainEl.textContent = "";
+    summaryEl.textContent = "";
   }
 
   buildInputs();
