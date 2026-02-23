@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cash Float Builder (Prefer Small Coins)</title>
+  <style>
+    :root { color-scheme: light; }
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+      margin:0; line-height:1.35;
+      background:#fff;
+    }
+
+    /* ✅ 整組置中 */
+    .page{
+      max-width: 760px;
+      margin: 0 auto;
+      padding:16px;
+    }
+
+    /* ✅ 標題置中，更新時間置右 */
+    .topbar{
+      display:grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items:end;
+      gap:12px;
+      margin:0 0 10px;
+    }
+    h1{
+      font-size:20px;
+      margin:0;
+      text-align:center;          /* ✅ 置中 */
+      grid-column:2;              /* ✅ 放中間欄 */
+    }
+    .updated{
+      font-size:12px;
+      color:#666;
+      white-space:nowrap;
+      justify-self:end;           /* ✅ 置右 */
+      grid-column:3;
+    }
+    @media (max-width: 760px){
+      .topbar{
+        grid-template-columns:1fr;
+        align-items:start;
+      }
+      h1{ grid-column:auto; text-align:left; }
+      .updated{ grid-column:auto; justify-self:start; }
+    }
+
+    /* ✅ 左右同寬；窄螢幕單欄 */
+    .wrap{
+      display:grid;
+      grid-template-columns: minmax(320px, 360px) minmax(320px, 360px);
+      gap:12px;
+      align-items:start;
+      justify-content:center;
+    }
+    @media (max-width: 760px){
+      .page{ max-width: 100%; }
+      .wrap{ grid-template-columns:1fr; }
+    }
+
+    .card{ border:1px solid #ddd; border-radius:12px; padding:12px; background:#fff; }
+
+    /* ✅ 左右 card 同高 */
+    .card.fixed{
+      height: 560px;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .card h2{ font-size:13px; margin:0 0 8px; color:#333; }
+
+    /* 輸入框更短、更靠左 */
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 58px;
+      gap:6px 8px;
+      align-items:center;
+      justify-items:start;
+    }
+    label{ font-size:12.5px; color:#222; }
+    input[type="number"]{
+      width:58px;
+      padding:5px 7px;
+      border:1px solid #ccc;
+      border-radius:10px;
+      font-size:13px;
+      text-align:right;
+      box-sizing:border-box;
+      justify-self:start;
+    }
+    input::placeholder{ color:#bbb; }
+
+    .btns{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+    button{
+      padding:8px 11px; border:1px solid #333; background:#111; color:#fff; border-radius:10px;
+      cursor:pointer; font-size:13px;
+    }
+    button.ghost{ background:#f7f7f7; color:#111; border-color:#ddd; }
+
+    .note{ font-size:12px; color:#555; margin-top:9px; }
+    .mono{ font-variant-numeric: tabular-nums; font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+    .pill{ display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid #ddd; font-size:11.5px; color:#333; background:#fafafa; }
+
+    .status{ padding:8px 10px; border-radius:10px; margin:8px 0 0; font-size:12.5px; }
+    .ok{ background:#eefbf0; border:1px solid #bfe6c7; color:#1f5f2b; }
+    .warn{ background:#fff9e8; border:1px solid #f1d59a; color:#6a4a00; }
+    .bad{ background:#fff2f2; border:1px solid #f0bcbc; color:#8a1f1f; }
+
+    .resultBox{
+      flex:1;
+      overflow:auto;
+      border:1px solid #eee;
+      border-radius:10px;
+      padding:6px;
+      background:#fff;
+      min-height: 0;
+    }
+    table{ width:100%; border-collapse:collapse; }
+    th,td{ text-align:right; padding:4px 6px; border-bottom:1px solid #eee; font-size:12px; }
+    th{ background:#fafafa; color:#333; position:sticky; top:0; }
+    td:first-child,th:first-child{ text-align:left; }
+
+    .footer{ margin-top:8px; font-size:12px; color:#666; }
+
+    .author{
+      margin-top:auto;
+      font-size:16px;
+      color:#666;
+      text-align:right;
+      padding-top:10px;
+    }
+
+    .leftScroll{
+      flex:1;
+      overflow:auto;
+      min-height:0;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div></div>
+      <!-- ✅ 改標題 + 置中 -->
+      <h1>備用金$300</h1>
+      <div class="updated">Last updated: 2026/01/18</div>
+    </div>
+
+    <div class="wrap">
+      <div class="card fixed">
+        <h2>輸入：庫存數量</h2>
+
+        <div class="leftScroll">
+          <div class="grid" id="invGrid"></div>
+
+          <div class="btns">
+            <button class="ghost" id="btnClear">重置為預設</button>
+          </div>
+
+          <div class="note">
+            ✅ 自動計算（有延遲防抖，避免當機）。<br>
+            1) 先保底：<span class="pill">20×3</span>、<span class="pill">10×6</span>（不足就拿多少）。<br>
+            2) 目標：<b>只要湊得到 300 就一定湊到 300</b>；在此基礎上盡量多留 0.05 / 0.10 / 0.25。<br>
+            3) 若真的湊不到 300，才會顯示最大可達（不超過 300）。
+          </div>
+        </div>
+
+        <div class="author">Author: Min</div>
+      </div>
+
+      <div class="card fixed">
+        <h2>結果</h2>
+        <div id="status" class="status bad">請輸入庫存數量（預設 0 不顯示）。</div>
+
+        <div class="resultBox" aria-label="結果區">
+          <table id="resultTable" aria-label="配發結果">
+            <thead>
+              <tr>
+                <th>面額</th>
+                <th>庫存</th>
+                <th>配發</th>
+                <th>小計</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr>
+                <td class="mono"><b>總計</b></td>
+                <td></td>
+                <td></td>
+                <td class="mono" id="grandTotal"><b>0.00</b></td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="footer" id="explain"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  /*
+    Internal marker (not shown on UI):
+    Author: Min
+    (Anyone who views source can still see it.)
+  */
+
+  // UI 顯示順序：20 在最上面，0.05 在最下面
+  const DENOMS = [
+    { key:"20",   label:"$20",   cents: 2000 },
+    { key:"10",   label:"$10",   cents: 1000 },
+    { key:"5",    label:"$5",    cents: 500 },
+    { key:"2",    label:"$2",    cents: 200 },
+    { key:"1",    label:"$1",    cents: 100 },
+    { key:"0.25", label:"$0.25", cents: 25 },
+    { key:"0.10", label:"$0.10", cents: 10 },
+    { key:"0.05", label:"$0.05", cents: 5 },
+  ];
+
+  // ✅ 輸入區顯示：數字前面加上 $（更不單調）
+  const INPUT_LABELS = {
+    "20": "$20",
+    "10": "$10",
+    "5": "$5",
+    "2": "$2",
+    "1": "$1",
+    "0.25": "$0.25",
+    "0.10": "$0.10",
+    "0.05": "$0.05"
+  };
+
+  const TARGET_CENTS = 30000;
+  const BASE_LOCK = [
+    { key:"20", count: 3 },
+    { key:"10", count: 6 },
+  ];
+
+  // 偏好：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5；再少用 10、少用 20
+  const SCORE_KEYS = ["0.05","0.10","0.25","1","2","5","10","20"];
+
+  const $ = (sel) => document.querySelector(sel);
+  const invGrid = $("#invGrid");
+  const statusEl = $("#status");
+  const tbody = $("#resultTable tbody");
+  const grandTotalEl = $("#grandTotal");
+  const explainEl = $("#explain");
+
+  // Hidden watermark string (not displayed)
+  const __wm = ["Au","thor",": ","Min"].join("");
+
+  function buildInputs(){
+    invGrid.innerHTML = "";
+    for (const d of DENOMS){
+      const id = "inv_" + d.key.replace(".","_");
+
+      const lab = document.createElement("label");
+      lab.setAttribute("for", id);
+      lab.textContent = INPUT_LABELS[d.key] ?? d.key;
+
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.min = "0";
+      inp.step = "1";
+      inp.id = id;
+
+      inp.placeholder = "0";
+      inp.value = "";
+
+      inp.addEventListener("focus", () => inp.select());
+      inp.addEventListener("blur", () => {
+        const raw = inp.value.trim();
+        const v = raw === "" ? 0 : Number(raw);
+        if (!raw || !Number.isFinite(v) || v <= 0) inp.value = "";
+        else inp.value = String(Math.floor(v));
+      });
+
+      inp.addEventListener("input", scheduleAutoCalc);
+
+      invGrid.appendChild(lab);
+      invGrid.appendChild(inp);
+    }
+  }
+
+  function readInv(){
+    const inv = {};
+    for (const d of DENOMS){
+      const id = "inv_" + d.key.replace(".","_");
+      const raw = document.getElementById(id).value.trim();
+      const v = raw === "" ? 0 : Number(raw);
+      inv[d.key] = Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+    }
+    return inv;
+  }
+
+  function resetToDefault(){
+    for (const d of DENOMS){
+      const id = "inv_" + d.key.replace(".","_");
+      document.getElementById(id).value = "";
+    }
+  }
+
+  function money(cents){ return (cents / 100).toFixed(2); }
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  // ---------- 偏好 DP（Int32 防溢位） ----------
+  function betterCandidate(c, cur){
+    for (let i = 0; i <= 5; i++){
+      if (c[i] !== cur[i]) return c[i] > cur[i];
+    }
+    for (let i = 6; i <= 7; i++){
+      if (c[i] !== cur[i]) return c[i] < cur[i];
+    }
+    return false;
+  }
+
+  function makeItems(inv){
+    const items = [];
+    for (const d of DENOMS){
+      const cnt = inv[d.key] ?? 0;
+      if (cnt <= 0) continue;
+
+      let k = 1;
+      let left = cnt;
+      while (left > 0){
+        const take = Math.min(k, left);
+        left -= take;
+        k <<= 1;
+
+        const idx = SCORE_KEYS.indexOf(d.key);
+        items.push({ value: d.cents * take, idx, take });
+      }
+    }
+    return items;
+  }
+
+  function solvePreferSmallBest(amountCents, inv){
+    amountCents = amountCents - (amountCents % 5);
+    if (amountCents < 0) amountCents = 0;
+
+    const items = makeItems(inv);
+
+    const reachable = new Uint8Array(amountCents + 1);
+    const c0 = new Int32Array(amountCents + 1);
+    const c1 = new Int32Array(amountCents + 1);
+    const c2 = new Int32Array(amountCents + 1);
+    const c3 = new Int32Array(amountCents + 1);
+    const c4 = new Int32Array(amountCents + 1);
+    const c5 = new Int32Array(amountCents + 1);
+    const c6 = new Int32Array(amountCents + 1);
+    const c7 = new Int32Array(amountCents + 1);
+
+    reachable[0] = 1;
+
+    for (const it of items){
+      const v = it.value;
+      if (v > amountCents) continue;
+
+      for (let s = amountCents; s >= v; s--){
+        if (!reachable[s - v]) continue;
+
+        const cand = [
+          c0[s - v], c1[s - v], c2[s - v], c3[s - v],
+          c4[s - v], c5[s - v], c6[s - v], c7[s - v],
+        ];
+        if (it.idx >= 0) cand[it.idx] += it.take;
+
+        if (!reachable[s]){
+          reachable[s] = 1;
+          c0[s]=cand[0]; c1[s]=cand[1]; c2[s]=cand[2]; c3[s]=cand[3];
+          c4[s]=cand[4]; c5[s]=cand[5]; c6[s]=cand[6]; c7[s]=cand[7];
+        } else {
+          const cur = [c0[s],c1[s],c2[s],c3[s],c4[s],c5[s],c6[s],c7[s]];
+          if (betterCandidate(cand, cur)){
+            c0[s]=cand[0]; c1[s]=cand[1]; c2[s]=cand[2]; c3[s]=cand[3];
+            c4[s]=cand[4]; c5[s]=cand[5]; c6[s]=cand[6]; c7[s]=cand[7];
+          }
+        }
+      }
+    }
+
+    let bestSum = -1;
+    if (reachable[amountCents]) bestSum = amountCents;
+    else {
+      for (let s = amountCents; s >= 0; s -= 5){
+        if (reachable[s]) { bestSum = s; break; }
+      }
+    }
+    if (bestSum < 0) return null;
+
+    const counts = {
+      "0.05": c0[bestSum],
+      "0.10": c1[bestSum],
+      "0.25": c2[bestSum],
+      "1":    c3[bestSum],
+      "2":    c4[bestSum],
+      "5":    c5[bestSum],
+      "10":   c6[bestSum],
+      "20":   c7[bestSum],
+    };
+
+    return { sumCents: bestSum, counts, exact: (bestSum === amountCents) };
+  }
+
+  // ---------- 保底保險：只求 exact ----------
+  function solveAnyExact(amountCents, inv){
+    amountCents = amountCents - (amountCents % 5);
+    if (amountCents < 0) amountCents = 0;
+
+    const items = [];
+    for (const d of DENOMS){
+      const cnt = inv[d.key] ?? 0;
+      if (cnt <= 0) continue;
+
+      let k = 1;
+      let left = cnt;
+      while (left > 0){
+        const take = Math.min(k, left);
+        left -= take;
+        k <<= 1;
+        items.push({ value: d.cents * take, key: d.key, take });
+      }
+    }
+
+    const reachable = new Uint8Array(amountCents + 1);
+    const prevSum = new Int32Array(amountCents + 1);
+    const prevItem = new Int32Array(amountCents + 1);
+    prevSum.fill(-1);
+    prevItem.fill(-1);
+    reachable[0] = 1;
+
+    for (let i = 0; i < items.length; i++){
+      const it = items[i];
+      const v = it.value;
+      if (v > amountCents) continue;
+
+      for (let s = amountCents; s >= v; s--){
+        if (reachable[s]) continue;
+        if (!reachable[s - v]) continue;
+        reachable[s] = 1;
+        prevSum[s] = s - v;
+        prevItem[s] = i;
+      }
+      if (reachable[amountCents]) break;
+    }
+
+    if (!reachable[amountCents]) return null;
+
+    const counts = Object.fromEntries(DENOMS.map(d => [d.key, 0]));
+    let cur = amountCents;
+    while (cur > 0){
+      const i = prevItem[cur];
+      if (i < 0) break;
+      const it = items[i];
+      counts[it.key] += it.take;
+      cur = prevSum[cur];
+    }
+    return counts;
+  }
+
+  function compute(){
+    const originalInv = readInv();
+    let inv = { ...originalInv };
+    const used = Object.fromEntries(DENOMS.map(d => [d.key, 0]));
+    const log = [];
+
+    function denomCents(key){
+      const d = DENOMS.find(x => x.key === key);
+      return d ? d.cents : 0;
+    }
+
+    function take(key, n){
+      const can = Math.min(inv[key] ?? 0, n);
+      inv[key] = (inv[key] ?? 0) - can;
+      used[key] = (used[key] ?? 0) + can;
+      return can;
+    }
+
+    // 保底
+    let baseCents = 0;
+    for (const b of BASE_LOCK){
+      const got = take(b.key, b.count);
+      baseCents += got * denomCents(b.key);
+      if (got < b.count) log.push(`保底不足：${b.key} 需要 ${b.count}，實拿 ${got}。`);
+    }
+
+    const remainingTarget = TARGET_CENTS - baseCents;
+    if (remainingTarget < 0){
+      return { level:"bad", message:"保底已超過 300，請檢查設定。", used, explain:"" };
+    }
+
+    const pref = solvePreferSmallBest(remainingTarget, inv);
+    if (!pref){
+      const totalCents = baseCents;
+      return { level:"bad", message:`庫存不足：保底後仍無法再組出任何金額。總計 ${money(totalCents)}。`, used, explain:"" };
+    }
+
+    // 套用偏好解
+    for (const k of Object.keys(pref.counts)){
+      const cnt = pref.counts[k] ?? 0;
+      if (cnt > 0) take(k, cnt);
+    }
+
+    let totalCents = baseCents + pref.sumCents;
+
+    // 若沒到 300，檢查是否存在 exact；若存在就救回 300
+    if (totalCents !== TARGET_CENTS){
+      inv = { ...originalInv };
+      for (const b of BASE_LOCK){
+        const can = Math.min(inv[b.key] ?? 0, b.count);
+        inv[b.key] = (inv[b.key] ?? 0) - can;
+      }
+      const exactCounts = solveAnyExact(remainingTarget, inv);
+      if (exactCounts){
+        const rebuilt = Object.fromEntries(DENOMS.map(d => [d.key, 0]));
+        for (const b of BASE_LOCK){
+          rebuilt[b.key] += Math.min(originalInv[b.key] ?? 0, b.count);
+        }
+        for (const d of DENOMS){
+          rebuilt[d.key] += (exactCounts[d.key] ?? 0);
+        }
+        let sum = 0;
+        for (const d of DENOMS) sum += rebuilt[d.key] * d.cents;
+        if (sum === TARGET_CENTS){
+          for (const d of DENOMS) used[d.key] = rebuilt[d.key];
+          totalCents = sum;
+          log.push("已啟用保底保險：為了湊到 300.00，放寬了部分小面額偏好。");
+        }
+      }
+    }
+
+    const exact300 = (totalCents === TARGET_CENTS);
+    let level = "ok";
+    let message = "已精準湊到 300.00，並盡量多保留 0.05/0.10/0.25。";
+    if (!exact300){
+      level = "warn";
+      message = `⚠️ 真的湊不到 300.00：已取最大可達且不超過。總計 ${money(totalCents)}（差 ${money(TARGET_CENTS - totalCents)}）。`;
+    }
+
+    const explain = [
+      `保底：20×${used["20"]}、10×${used["10"]}（不足則依庫存）。`,
+      `偏好：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5（盡量少用 10/20）。`,
+      `結果：0.05×${used["0.05"]}、0.10×${used["0.10"]}、0.25×${used["0.25"]}。`
+    ].join("<br>");
+
+    return { level, message, used, explain };
+  }
+
+  function render(res){
+    statusEl.className = "status " + (res.level === "ok" ? "ok" : res.level === "warn" ? "warn" : "bad");
+    statusEl.textContent = res.message;
+
+    const invInput = readInv();
+    tbody.innerHTML = "";
+    let sum = 0;
+
+    for (const d of DENOMS){
+      const invCnt = invInput[d.key] ?? 0;
+      const useCnt = res.used?.[d.key] ?? 0;
+      const subtotal = useCnt * d.cents;
+      sum += subtotal;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${d.label}</td>
+        <td class="mono">${invCnt}</td>
+        <td class="mono"><b>${useCnt}</b></td>
+        <td class="mono">${money(subtotal)}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    grandTotalEl.textContent = money(sum);
+    explainEl.innerHTML = res.explain ?? "";
+  }
+
+  // 自動計算 debounce（避免當機）
+  let calcTimer = null;
+  let isRunning = false;
+
+  function scheduleAutoCalc(){
+    if (calcTimer) clearTimeout(calcTimer);
+    calcTimer = setTimeout(runAutoCalcSafely, 320);
+  }
+
+  function runAutoCalcSafely(){
+    if (isRunning){
+      if (calcTimer) clearTimeout(calcTimer);
+      calcTimer = setTimeout(runAutoCalcSafely, 220);
+      return;
+    }
+    isRunning = true;
+    try{
+      render(compute());
+    } finally {
+      isRunning = false;
+    }
+  }
+
+  function resetAll(){
+    resetToDefault();
+    statusEl.className = "status bad";
+    statusEl.textContent = "已重置為預設（全部視為 0，且 0 不顯示）。";
+    tbody.innerHTML = "";
+    grandTotalEl.textContent = "0.00";
+    explainEl.textContent = "";
+  }
+
+  buildInputs();
+  resetToDefault();
+  $("#btnClear").addEventListener("click", resetAll);
+})();
+</script>
+</body>
+</html>
