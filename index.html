@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- watermark: Jake (Min) | do not remove -->
+  <meta name="author" content="Jake (Min)" />
+  <meta name="x-build" content="cash300|v6|2026-02-22|Y2FzaDMwMHx2NnwyMDI2LTAyLTIyfEpha2UgKE1pbik=" />
+
   <title>Cash Float Builder (Prefer Small Coins)</title>
   <style>
     :root { color-scheme: light; }
@@ -151,9 +155,14 @@
       overflow:auto;
       min-height:0;
     }
+
+    /* --- provenance markers (hidden) --- */
+    .wmHide{ position:absolute; left:-99999px; top:auto; width:1px; height:1px; overflow:hidden; white-space:nowrap; }
+    .wmZero{ letter-spacing:0; font-size:0; line-height:0; opacity:0; user-select:none; }
+
   </style>
 </head>
-<body>
+<body data-author="Jake (Min)" data-sig="Y2FzaDMwMHx2NnwyMDI2LTAyLTIyfEpha2UgKE1pbik=">
   <div class="page">
     <div class="topbar">
       <div></div>
@@ -218,8 +227,32 @@
     </div>
   </div>
 
+
+  <!-- hidden provenance markers (multiple forms) -->
+  <span class="wmHide" aria-hidden="true">Author: Jake (Min) • cash300 • v6</span>
+  <span class="wmZero" aria-hidden="true">J&#8203;ake&#8203; (M&#8203;in)</span>
+
 <script>
 (() => {
+
+  // provenance markers (non-intrusive)
+  const __A = "Jake (Min)";
+  const __S = "Y2FzaDMwMHx2NnwyMDI2LTAyLTIyfEpha2UgKE1pbik="; // base64-ish build tag
+  try{
+    const m = document.querySelector('meta[name="author"]')?.content || "";
+    const bd = document.body?.dataset?.author || "";
+    const ok = (m.includes("Jake") && bd.includes("Jake"));
+    if(!ok){
+      console.warn("[cash300] signature mismatch");
+    }else{
+      console.debug("[cash300] " + __A + " | " + __S);
+      // store a soft marker to survive simple copy/paste edits
+      if (window.localStorage){
+        localStorage.setItem("cash300_prov", __A + "|" + __S);
+      }
+    }
+  }catch(e){}
+
   /*
     Internal marker (not shown on UI):
     Author: Min
@@ -227,28 +260,46 @@
   */
 
   // UI 顯示順序：20 在最上面，0.05 在最下面
-  const DENOMS = [
-    { key:"20",   label:"$20",   cents: 2000 },
-    { key:"10",   label:"$10",   cents: 1000 },
-    { key:"5",    label:"$5",    cents: 500 },
-    { key:"2",    label:"$2",    cents: 200 },
-    { key:"1",    label:"$1",    cents: 100 },
-    { key:"0.25", label:"$0.25", cents: 25 },
-    { key:"0.10", label:"$0.10", cents: 10 },
-    { key:"0.05", label:"$0.05", cents: 5 },
-  ];
+  // UI 顯示順序：大鈔在最上面，0.05 在最下面
+// ALL_DENOMS：用於「輸入/顯示/總額」(包含 $50/$100)
+// CALC_DENOMS：用於「湊零用金 $300」(不含 $50/$100)
+const ALL_DENOMS = [
+  { key:"100",  label:"$100",  cents: 10000 },
+  { key:"50",   label:"$50",   cents: 5000 },
+  { key:"20",   label:"$20",   cents: 2000 },
+  { key:"10",   label:"$10",   cents: 1000 },
+  { key:"5",    label:"$5",    cents: 500 },
+  { key:"2",    label:"$2",    cents: 200 },
+  { key:"1",    label:"$1",    cents: 100 },
+  { key:"0.25", label:"$0.25", cents: 25 },
+  { key:"0.10", label:"$0.10", cents: 10 },
+  { key:"0.05", label:"$0.05", cents: 5 },
+];
+
+const CALC_DENOMS = [
+  { key:"20",   label:"$20",   cents: 2000 },
+  { key:"10",   label:"$10",   cents: 1000 },
+  { key:"5",    label:"$5",    cents: 500 },
+  { key:"2",    label:"$2",    cents: 200 },
+  { key:"1",    label:"$1",    cents: 100 },
+  { key:"0.25", label:"$0.25", cents: 25 },
+  { key:"0.10", label:"$0.10", cents: 10 },
+  { key:"0.05", label:"$0.05", cents: 5 },
+];
 
   // ✅ 輸入區顯示：數字前面加上 $（更不單調）
   const INPUT_LABELS = {
-    "20": "$20",
-    "10": "$10",
-    "5": "$5",
-    "2": "$2",
-    "1": "$1",
-    "0.25": "$0.25",
-    "0.10": "$0.10",
-    "0.05": "$0.05"
-  };
+  "100": "$100",
+  "50": "$50",
+  "20": "$20",
+  "10": "$10",
+  "5": "$5",
+  "2": "$2",
+  "1": "$1",
+  "0.25": "$0.25",
+  "0.10": "$0.10",
+  "0.05": "$0.05"
+};
 
   const TARGET_CENTS = 30000;
   const BASE_LOCK = [
@@ -272,7 +323,7 @@
 
   function buildInputs(){
     invGrid.innerHTML = "";
-    for (const d of DENOMS){
+    for (const d of ALL_DENOMS){
       const id = "inv_" + d.key.replace(".","_");
 
       const lab = document.createElement("label");
@@ -322,7 +373,7 @@
 
   function readInv(){
     const inv = {};
-    for (const d of DENOMS){
+    for (const d of ALL_DENOMS){
       const id = "inv_" + d.key.replace(".","_");
       const raw = document.getElementById(id).value.trim();
       const v = raw === "" ? 0 : Number(raw);
@@ -332,7 +383,7 @@
   }
 
   function resetToDefault(){
-    for (const d of DENOMS){
+    for (const d of ALL_DENOMS){
       const id = "inv_" + d.key.replace(".","_");
       document.getElementById(id).value = "";
     }
@@ -358,7 +409,7 @@
 
   function makeItems(inv){
     const items = [];
-    for (const d of DENOMS){
+    for (const d of CALC_DENOMS){
       const cnt = inv[d.key] ?? 0;
       if (cnt <= 0) continue;
 
@@ -450,7 +501,7 @@
     if (amountCents < 0) amountCents = 0;
 
     const items = [];
-    for (const d of DENOMS){
+    for (const d of CALC_DENOMS){
       const cnt = inv[d.key] ?? 0;
       if (cnt <= 0) continue;
 
@@ -488,7 +539,7 @@
 
     if (!reachable[amountCents]) return null;
 
-    const counts = Object.fromEntries(DENOMS.map(d => [d.key, 0]));
+    const counts = Object.fromEntries(CALC_DENOMS.map(d => [d.key, 0]));
     let cur = amountCents;
     while (cur > 0){
       const i = prevItem[cur];
@@ -503,11 +554,11 @@
   function compute(){
     const originalInv = readInv();
     let inv = { ...originalInv };
-    const used = Object.fromEntries(DENOMS.map(d => [d.key, 0]));
+    const used = Object.fromEntries(ALL_DENOMS.map(d => [d.key, 0]));
     const log = [];
 
     function denomCents(key){
-      const d = DENOMS.find(x => x.key === key);
+      const d = ALL_DENOMS.find(x => x.key === key);
       return d ? d.cents : 0;
     }
 
@@ -554,17 +605,17 @@
       }
       const exactCounts = solveAnyExact(remainingTarget, inv);
       if (exactCounts){
-        const rebuilt = Object.fromEntries(DENOMS.map(d => [d.key, 0]));
+        const rebuilt = Object.fromEntries(CALC_DENOMS.map(d => [d.key, 0]));
         for (const b of BASE_LOCK){
           rebuilt[b.key] += Math.min(originalInv[b.key] ?? 0, b.count);
         }
-        for (const d of DENOMS){
+        for (const d of CALC_DENOMS){
           rebuilt[d.key] += (exactCounts[d.key] ?? 0);
         }
         let sum = 0;
-        for (const d of DENOMS) sum += rebuilt[d.key] * d.cents;
+        for (const d of CALC_DENOMS) sum += rebuilt[d.key] * d.cents;
         if (sum === TARGET_CENTS){
-          for (const d of DENOMS) used[d.key] = rebuilt[d.key];
+          for (const d of CALC_DENOMS) used[d.key] = rebuilt[d.key];
           totalCents = sum;
           log.push("已啟用保底保險：為了湊到 300.00，放寬了部分小面額偏好。");
         }
@@ -580,10 +631,11 @@
     }
 
     const explain = [
-      `保底：20×${used["20"]}、10×${used["10"]}（不足則依庫存）。`,
-      `偏好：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5（盡量少用 10/20）。`,
-      `結果：0.05×${used["0.05"]}、0.10×${used["0.10"]}、0.25×${used["0.25"]}。`
-    ].join("<br>");
+  `保底：20×${used["20"]}、10×${used["10"]}（不足則依庫存）。`,
+  `偏好：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5（盡量少用 10/20）。`,
+  `結果：0.05×${used["0.05"]}、0.10×${used["0.10"]}、0.25×${used["0.25"]}。`,
+  `注意：$50 / $100 不會納入「湊 300」計算，只會算進每日現金總額。`
+].join("<br>");
 
     return { level, message, used, explain };
   }
@@ -600,7 +652,7 @@
     let invPieces = 0;      // 庫存總數量（張/枚）
     let remainPieces = 0;   // 剩餘總數量（張/枚）
 
-    for (const d of DENOMS){
+    for (const d of ALL_DENOMS){
       const invCnt = invInput[d.key] ?? 0;
       const useCnt = res.used?.[d.key] ?? 0;
       const subtotal = useCnt * d.cents;
