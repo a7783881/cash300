@@ -56,7 +56,7 @@
     
     .wrap{
       display:grid;
-      grid-template-columns: minmax(320px, 360px) minmax(320px, 360px);
+      grid-template-columns: minmax(320px, 360px) minmax(360px, 500px);
       gap:12px;
       align-items:start;
       justify-content:center;
@@ -168,7 +168,7 @@
       <div></div>
       
       <h1>備用金$300</h1>
-      <div class="updated">Last updated: 2026/02/22</div>
+      <div class="updated">Last updated: 2026/08/08</div>
     </div>
 
     <div class="wrap">
@@ -184,7 +184,7 @@
 
           <div class="note">
             ✅ 自動計算<br>
-            1) 先保底：<span class="pill">20×3</span>、<span class="pill">10×6</span>（不足就拿多少）。<br>
+            1) 先保底：<span class="pill">20×4</span>、<span class="pill">10×6</span>（不足就拿多少）。<br>
             2) 目標：<b>只要湊得到 300 就一定湊到 300</b>；在此基礎上盡量多留 0.05 / 0.10 / 0.25。<br>
             3) 若真的湊不到 300，才會顯示最大可達（不超過 300）。
           </div>
@@ -202,10 +202,10 @@
             <thead>
               <tr>
                 <th>面額</th>
-                <th>總數</th>
                 <th>零用金</th>
+                <th>零用金小計</th>
                 <th>每日現金</th>
-                <th>總計</th>
+                <th>每日現金小計</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -213,9 +213,9 @@
               <tr>
                 <td class="mono"><b>總計</b></td>
                 <td></td>
+                <td class="mono" id="floatTotal"><b>0.00</b></td>
                 <td></td>
-                <td></td>
-                <td class="mono" id="grandTotal"><b>0.00</b></td>
+                <td class="mono" id="dailyTotal"><b>0.00</b></td>
               </tr>
             </tfoot>
           </table>
@@ -303,7 +303,7 @@ const CALC_DENOMS = [
 
   const TARGET_CENTS = 30000;
   const BASE_LOCK = [
-    { key:"20", count: 3 },
+    { key:"20", count: 4 },
     { key:"10", count: 6 },
   ];
 
@@ -314,7 +314,8 @@ const CALC_DENOMS = [
   const invGrid = $("#invGrid");
   const statusEl = $("#status");
   const tbody = $("#resultTable tbody");
-  const grandTotalEl = $("#grandTotal");
+  const floatTotalEl = $("#floatTotal");
+  const dailyTotalEl = $("#dailyTotal");
   const explainEl = $("#explain");
   const summaryEl = $("#summary");
 
@@ -410,7 +411,8 @@ const CALC_DENOMS = [
   function makeItems(inv){
     const items = [];
     for (const d of CALC_DENOMS){
-      const cnt = inv[d.key] ?? 0;
+      let cnt = inv[d.key] ?? 0;
+      if (d.key === "5") cnt = Math.min(cnt, 20);
       if (cnt <= 0) continue;
 
       let k = 1;
@@ -502,7 +504,8 @@ const CALC_DENOMS = [
 
     const items = [];
     for (const d of CALC_DENOMS){
-      const cnt = inv[d.key] ?? 0;
+      let cnt = inv[d.key] ?? 0;
+      if (d.key === "5") cnt = Math.min(cnt, 20);
       if (cnt <= 0) continue;
 
       let k = 1;
@@ -632,9 +635,9 @@ const CALC_DENOMS = [
 
     const explain = [
   `保底：20×${used["20"]}、10×${used["10"]}（不足則依庫存）。`,
-  `偏好：先最大化 0.05 → 0.10 → 0.25 → 1 → 2 → 5（盡量少用 10/20）。`,
+  `偏好：先最大化 0.05 → 0.10 → 0.25 → 1 → 2；$5 最多使用 20 張（理想約 15–20 張），盡量少用 10/20。`,
   `結果：0.05×${used["0.05"]}、0.10×${used["0.10"]}、0.25×${used["0.25"]}。`,
-  `注意：$50 / $100 不會納入「湊 300」計算，只會算進每日現金總額。`
+  `注意：未使用的 $0.05 / $0.10 / $0.25 不列入每日現金；$50 / $100 不會納入「湊 300」計算，只會算進每日現金總額。`
 ].join("<br>");
 
     return { level, message, used, explain };
@@ -650,40 +653,47 @@ const CALC_DENOMS = [
     let invSum = 0;         
     let remainSum = 0;      
     let invPieces = 0;      
-    let remainPieces = 0;   
+    let remainPieces = 0;
+    let usedPieces = 0;   
 
     for (const d of ALL_DENOMS){
       const invCnt = invInput[d.key] ?? 0;
       const useCnt = res.used?.[d.key] ?? 0;
       const subtotal = useCnt * d.cents;
       sum += subtotal;
+      usedPieces += useCnt;
 
       const invSubtotal = invCnt * d.cents;
       invSum += invSubtotal;
       invPieces += invCnt;
 
       const remainCnt = Math.max(0, invCnt - useCnt);
-      remainSum += remainCnt * d.cents;
-      remainPieces += remainCnt;
+      const excludeFromDaily = (d.key === "0.25" || d.key === "0.10" || d.key === "0.05");
+      if (!excludeFromDaily){
+        remainSum += remainCnt * d.cents;
+        remainPieces += remainCnt;
+      }
 
       const tr = document.createElement("tr");
+      const dailySubtotal = excludeFromDaily ? 0 : (remainCnt * d.cents);
       tr.innerHTML = `
         <td class="mono">${d.label}</td>
-        <td class="mono">${invCnt}</td>
         <td class="mono"><b>${useCnt}</b></td>
-        <td class="mono">${remainCnt}</td>
         <td class="mono">${money(subtotal)}</td>
+        <td class="mono">${excludeFromDaily ? 0 : remainCnt}</td>
+        <td class="mono">${money(dailySubtotal)}</td>
       `;
       tbody.appendChild(tr);
     }
 
-    grandTotalEl.textContent = money(sum);
+    floatTotalEl.textContent = money(sum);
+    dailyTotalEl.textContent = money(remainSum);
     explainEl.innerHTML = res.explain ?? "";
 
     
     summaryEl.innerHTML = [
       `總金額：$${money(invSum)}（${invPieces}）`,
-      `零用金：$${money(sum)}（${invPieces - remainPieces}）`,
+      `零用金：$${money(sum)}（${usedPieces}）`,
       `每日現金：$${money(remainSum)}（${remainPieces}）`,
     ].join("<br>");
   }
@@ -716,8 +726,11 @@ const CALC_DENOMS = [
     statusEl.className = "status bad";
     statusEl.textContent = "已重置為預設（全部視為 0，且 0 不顯示）。";
     tbody.innerHTML = "";
-    grandTotalEl.textContent = "0.00";
+    floatTotalEl.textContent = "0.00";
+    dailyTotalEl.textContent = "0.00";
     explainEl.textContent = "";
+    floatTotalEl.textContent = "0.00";
+    dailyTotalEl.textContent = "0.00";
     summaryEl.textContent = "";
   }
 
